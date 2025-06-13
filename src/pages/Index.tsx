@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -9,11 +8,18 @@ import SettingsModal from '@/components/SettingsModal';
 import { useDeepSeekAPI } from '@/hooks/useDeepSeekAPI';
 import { toast } from 'sonner';
 
+interface UploadedFile {
+  file: File;
+  id: string;
+  preview?: string;
+}
+
 interface Message {
   id: string;
   content: string;
   role: 'user' | 'assistant';
   timestamp: Date;
+  files?: UploadedFile[];
 }
 
 interface Chat {
@@ -57,7 +63,7 @@ const Index = () => {
     setSidebarOpen(false);
   };
 
-  const handleSendMessage = async (content: string) => {
+  const handleSendMessage = async (content: string, files: UploadedFile[] = []) => {
     if (!currentChatId) {
       createNewChat();
       return;
@@ -68,6 +74,7 @@ const Index = () => {
       content,
       role: 'user',
       timestamp: new Date(),
+      files: files.length > 0 ? files : undefined,
     };
 
     // Add user message
@@ -76,7 +83,7 @@ const Index = () => {
         ? { 
             ...chat, 
             messages: [...chat.messages, userMessage],
-            title: chat.messages.length === 0 ? content.slice(0, 50) + '...' : chat.title
+            title: chat.messages.length === 0 ? (content || 'File upload').slice(0, 50) + '...' : chat.title
           }
         : chat
     ));
@@ -90,8 +97,8 @@ const Index = () => {
     };
     setStreamingMessage(assistantMessage);
 
-    // Send to API
-    const response = await sendMessage(content, apiKey, (streamingContent) => {
+    // Send to API with files
+    const response = await sendMessage(content, apiKey, files, (streamingContent) => {
       setStreamingMessage(prev => prev ? { ...prev, content: streamingContent } : null);
     });
 
