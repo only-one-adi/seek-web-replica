@@ -17,7 +17,10 @@ export const useDeepSeekAPI = () => {
     apiKey: string,
     onStreamingUpdate?: (content: string) => void
   ): Promise<Message | null> => {
-    if (!apiKey) {
+    // Use the environment variable if no API key is provided
+    const effectiveApiKey = apiKey || import.meta.env.VITE_DEEPSEEK_API_KEY;
+    
+    if (!effectiveApiKey) {
       toast.error('Please set your DeepSeek API key in settings');
       return null;
     }
@@ -25,10 +28,28 @@ export const useDeepSeekAPI = () => {
     setIsLoading(true);
     
     try {
-      // For now, we'll simulate the API call since the real integration needs environment setup
-      // This is where you would integrate with the actual DeepSeek API
-      
-      // Simulate streaming response
+      const response = await fetch(import.meta.env.VITE_DEEPSEEK_API_URL || 'https://api.deepseek.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${effectiveApiKey}`,
+        },
+        body: JSON.stringify({
+          model: 'deepseek-chat',
+          messages: [
+            {
+              role: 'user',
+              content: message,
+            },
+          ],
+          stream: true,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`API request failed: ${response.statusText}`);
+      }
+
       const responseMessage: Message = {
         id: Date.now().toString(),
         content: '',
@@ -36,18 +57,37 @@ export const useDeepSeekAPI = () => {
         timestamp: new Date(),
       };
 
-      const mockResponse = `Thank you for your message: "${message}". I'm a DeepSeek AI assistant ready to help you with various tasks including coding, analysis, creative writing, and answering questions. 
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
 
-Once you've configured your actual DeepSeek API key in the environment variables, I'll be able to provide real AI-powered responses. For now, this is a simulated response to demonstrate the interface.
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
 
-How can I assist you today?`;
+          const chunk = decoder.decode(value);
+          const lines = chunk.split('\n');
 
-      // Simulate streaming
-      for (let i = 0; i < mockResponse.length; i++) {
-        await new Promise(resolve => setTimeout(resolve, 20));
-        responseMessage.content = mockResponse.slice(0, i + 1);
-        if (onStreamingUpdate) {
-          onStreamingUpdate(responseMessage.content);
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6);
+              if (data === '[DONE]') continue;
+
+              try {
+                const parsed = JSON.parse(data);
+                const content = parsed.choices?.[0]?.delta?.content || '';
+                if (content) {
+                  responseMessage.content += content;
+                  if (onStreamingUpdate) {
+                    onStreamingUpdate(responseMessage.content);
+                  }
+                }
+              } catch (e) {
+                // Skip malformed JSON
+                continue;
+              }
+            }
+          }
         }
       }
 
