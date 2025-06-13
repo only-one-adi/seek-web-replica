@@ -1,0 +1,84 @@
+
+import React, { useState, useRef, useEffect } from 'react';
+import { Send, Square } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+
+interface ChatInputProps {
+  onSendMessage: (message: string) => void;
+  isLoading: boolean;
+  onStopGeneration: () => void;
+}
+
+const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, isLoading, onStopGeneration }) => {
+  const [message, setMessage] = useState('');
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (message.trim() && !isLoading) {
+      onSendMessage(message.trim());
+      setMessage('');
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit(e);
+    }
+  };
+
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+    }
+  }, [message]);
+
+  return (
+    <div className="border-t border-gray-200 bg-white p-4">
+      <form onSubmit={handleSubmit} className="max-w-4xl mx-auto">
+        <div className="relative flex items-end space-x-3">
+          <div className="flex-1">
+            <Textarea
+              ref={textareaRef}
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Ask DeepSeek anything..."
+              className="min-h-[60px] max-h-32 resize-none border-gray-300 focus:border-purple-500 focus:ring-purple-500 pr-12"
+              disabled={isLoading}
+            />
+          </div>
+          <div className="flex-shrink-0">
+            {isLoading ? (
+              <Button
+                type="button"
+                onClick={onStopGeneration}
+                variant="outline"
+                size="sm"
+                className="bg-red-50 border-red-200 text-red-600 hover:bg-red-100"
+              >
+                <Square className="h-4 w-4" />
+              </Button>
+            ) : (
+              <Button
+                type="submit"
+                disabled={!message.trim()}
+                className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 disabled:opacity-50"
+              >
+                <Send className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        </div>
+        <p className="text-xs text-gray-500 mt-2 text-center">
+          Press Enter to send, Shift + Enter for new line
+        </p>
+      </form>
+    </div>
+  );
+};
+
+export default ChatInput;
